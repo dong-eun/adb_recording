@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ADB_Recorder</string>
+
+    <string name="btn_start">Start</string>
+    <string name="btn_pause">Pause</string>
+    <string name="btn_run_time">Run Time</string>
+</resources>

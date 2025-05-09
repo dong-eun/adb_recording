@@ -1,0 +1,19 @@
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="orange_red">#FF4500</color>
+    <color name="dark_red">#8B0000</color>
+    <color name="light_grey">#D3D3D3</color>
+
+    <color name="btn_color_active">#4169E1</color>
+    <color name="btn_color_pressed">#6495ED</color>
+    <color name="btn_color_inactive">#B0C4DE</color>
+    <color name="backboard">#C0C0C0</color>
+
+    <color name="log_verbose">#696969</color>
+    <color name="log_debug">#696969</color>
+    <color name="log_info">#696969</color>
+    <color name="log_warning">#FF8C00</color>
+    <color name="log_error">#8B0000</color>
+    <color name="log_assert">#800080</color>
+</resources>
