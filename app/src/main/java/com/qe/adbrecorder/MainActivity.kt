@@ -1,179 +1,178 @@
 package com.qe.adbrecorder
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
-import android.text.Spannable
+import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
-import android.widget.Button
-import android.widget.HorizontalScrollView
-import android.widget.ScrollView
-import android.widget.TextView
+import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var btn_start : Button
-    private lateinit var btn_pause : Button
-    private lateinit var btn_run_time : Button
-    private lateinit var hsv_log_area : HorizontalScrollView
-    private lateinit var sv_log_area : ScrollView
-    private lateinit var tv_run_time : TextView
-    private lateinit var tv_log_area: TextView
+    // UI 구성요소
+    private lateinit var btn_start: Button               // 로그 시작 버튼
+    private lateinit var btn_pause: Button               // 로그 중지 버튼
+    private lateinit var btn_run_time: Button            // 현재 시간 + 업타임 버튼
+    private lateinit var hsv_log_area: HorizontalScrollView // 가로 스크롤
+    private lateinit var sv_log_area: ScrollView         // 세로 스크롤
+    private lateinit var tv_run_time: TextView           // 시간 & 업타임 출력
+    private lateinit var tv_log_area: TextView           // 로그 출력 영역
 
-    private var isRunning : Boolean = false
-    private var userScrolling : Boolean = false
-    private val logBuffer = StringBuilder()
+    private var userScrolling: Boolean = false           // 사용자 수동 스크롤 여부
+    private val logBuffer = SpannableStringBuilder()     // 로그 누적 버퍼
 
-    private var logcatThread: Thread? = null
+    private val MAX_LOG_LINES = 5000                    // 로그 최대 유지 줄 수
+    private var updateCounter = 0                        // UI 갱신 간격 카운터
+    private val UPDATE_INTERVAL = 10                     // 몇 줄마다 UI 갱신할지
+
+    // 로그 수신 브로드캐스트 리시버
+    private val logReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val logLine = intent?.getStringExtra("log_line") ?: return
+            appendColoredLog(logLine)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+
+        // 시스템 바 패딩 적용
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        btn_start = findViewById<Button>(R.id.btn_start)
-        btn_pause = findViewById<Button>(R.id.btn_pause)
-        btn_run_time = findViewById<Button>(R.id.btn_run_time)
-        tv_run_time = findViewById<TextView>(R.id.tv_run_time)
-        hsv_log_area = findViewById<HorizontalScrollView>(R.id.hsv_log_area)
-        sv_log_area = findViewById<ScrollView>(R.id.sv_log_area)
-        tv_log_area = findViewById<TextView>(R.id.tv_log_area)
+        // UI 요소 바인딩
+        btn_start = findViewById(R.id.btn_start)
+        btn_pause = findViewById(R.id.btn_pause)
+        btn_run_time = findViewById(R.id.btn_run_time)
+        hsv_log_area = findViewById(R.id.hsv_log_area)
+        sv_log_area = findViewById(R.id.sv_log_area)
+        tv_run_time = findViewById(R.id.tv_run_time)
+        tv_log_area = findViewById(R.id.tv_log_area)
 
+        // 스크롤 위치에 따라 자동 스크롤 여부 판단
         sv_log_area.viewTreeObserver.addOnScrollChangedListener {
             val scrollY = sv_log_area.scrollY
             val maxScroll = tv_log_area.height - sv_log_area.height
-
-            // 사용자가 스크롤을 위로 올리면 자동 스크롤 막기
             userScrolling = scrollY < maxScroll
         }
 
-        // Button 초기 상태 설정
+        // 버튼 초기 상태
         btn_start.isEnabled = true
         btn_pause.isEnabled = false
-        btn_run_time.isEnabled = true
 
-        btn_start.setOnClickListener {
-            startADB()
-        }
-
-        btn_pause.setOnClickListener {
-            pauseADB()
-        }
-
-        btn_run_time.setOnClickListener {
-            runTime()
-        }
+        // 버튼 클릭 리스너 등록
+        btn_start.setOnClickListener { startLogcatService() }
+        btn_pause.setOnClickListener { stopLogcatService() }
+        btn_run_time.setOnClickListener { runTime() }
     }
 
-    fun getLogColor(context: Context, line: String): Int {
-        return when {
-            line.contains(" V ") || line.startsWith("V/") -> ContextCompat.getColor(context, R.color.log_verbose)
-            line.contains(" D ") || line.startsWith("D/") -> ContextCompat.getColor(context, R.color.log_debug)
-            line.contains(" I ") || line.startsWith("I/") -> ContextCompat.getColor(context, R.color.log_info)
-            line.contains(" W ") || line.startsWith("W/") -> ContextCompat.getColor(context, R.color.log_warning)
-            line.contains(" E ") || line.startsWith("E/") -> ContextCompat.getColor(context, R.color.log_error)
-            line.contains(" A ") || line.startsWith("A/") -> ContextCompat.getColor(context, R.color.log_assert)
-
-            else -> ContextCompat.getColor(context, R.color.black)
-        }
+    override fun onStart() {
+        super.onStart()
+        // 로그 수신 브로드캐스트 등록
+        val filter = IntentFilter("com.qe.adbrecorder.LOG_EVENT")
+        LocalBroadcastManager.getInstance(this).registerReceiver(logReceiver, filter)
     }
 
-    private fun startADB() {
-        // 버튼 비활성화
+    override fun onStop() {
+        super.onStop()
+        // 로그 수신 브로드캐스트 해제
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(logReceiver)
+    }
+
+    // 로그 서비스 시작
+    private fun startLogcatService() {
+        val intent = Intent(this, LogcatService::class.java)
+        ContextCompat.startForegroundService(this, intent)
+
         btn_start.isEnabled = false
-
-        // 상태 플래그 변경
-        isRunning = true
-
-        // 필요하면 stop 버튼 활성화도 여기에 추가 가능
         btn_pause.isEnabled = true
 
-        // logcat 로그 읽는 스레드 시작
-        logcatThread = Thread {
-            try {
-                val process = Runtime.getRuntime().exec("logcat -v time")
-                val reader = process.inputStream.bufferedReader()
-
-                var line: String?
-                while (reader.readLine().also { line = it } != null && isRunning) {
-                    val logLine = line ?: continue
-                    runOnUiThread {
-                        val spannable = SpannableStringBuilder(logLine + "\n")
-                        val color = getLogColor(this, logLine)
-
-                        spannable.setSpan(
-                            ForegroundColorSpan(color),
-                            0,
-                            spannable.length,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        )
-
-                        tv_log_area.append(spannable)
-
-                        if (!userScrolling) {
-                            sv_log_area.post {
-                                sv_log_area.fullScroll(ScrollView.FOCUS_DOWN)
-                            }
-                        }
-
-                        if (tv_log_area.lineCount > 1000) {
-                            val currentText = tv_log_area.text.toString()
-                            val halfIndex = currentText.length / 2
-                            val trimmedText = currentText.substring(halfIndex)
-                            tv_log_area.text = "--- 로그가 초기화되었습니다 ---\n" + trimmedText
-                        }
-                    }
-                }
-
-                reader.close()
-                process.destroy()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        logcatThread?.start()
+        Toast.makeText(this, "로그 기록 시작됨", Toast.LENGTH_SHORT).show()
     }
 
-    private fun pauseADB() {
-        // 상태 플래그 변경
-        isRunning = false
+    // 로그 서비스 중지
+    private fun stopLogcatService() {
+        val intent = Intent(this, LogcatService::class.java)
+        stopService(intent)
 
-        // 로그 수집 스레드 정리
-        logcatThread?.interrupt()
-        logcatThread = null
-
-        // 버튼 상태 변경
         btn_start.isEnabled = true
         btn_pause.isEnabled = false
+
+        Toast.makeText(this, "로그 기록 중지됨", Toast.LENGTH_SHORT).show()
     }
 
+    // 현재 시간과 Uptime 출력
     private fun runTime() {
-        // 부팅 이후 경과된 시간(ms 단위) 가져오기 (기기가 켜진 후부터의 시간)
         val uptimeMillis = android.os.SystemClock.elapsedRealtime()
-
-        // 총 시간(ms)을 초 단위로 변환
         val totalSeconds = uptimeMillis / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
 
-        // 시, 분, 초로 나누기
-        val hours = totalSeconds / 3600 // 전체 시간 중 시(hour) 계산
-        val minutes = (totalSeconds % 3600) / 60 // 남은 시간 중 분(minute) 계산
-        val seconds = totalSeconds % 60 // 남은 시간 중 초(second) 계산
+        val currentTime = java.text.SimpleDateFormat(
+            "HH:mm:ss", java.util.Locale.getDefault()
+        ).format(java.util.Date())
 
-        // 현재 시각 가져오기 (시:분:초 형태)
-        val currentTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-
-        // TextView에 현재 시간과 업타임을 포맷에 맞게 출력
         tv_run_time.text = "Time: $currentTime  UpTime: %02d:%02d:%02d".format(hours, minutes, seconds)
+    }
+
+    // 로그에 색상 적용하여 출력 + 자동 스크롤 + 로그 버퍼 제한 + UI 갱신 주기 조절
+    private fun appendColoredLog(line: String) {
+        val colorResId = when {
+            line.contains(" A ") -> R.color.log_assert
+            line.contains(" E ") -> R.color.log_error
+            line.contains(" W ") -> R.color.log_warning
+            line.contains(" I ") -> R.color.log_info
+            line.contains(" D ") -> R.color.log_debug
+            line.contains(" V ") -> R.color.log_verbose
+            else -> R.color.black
+        }
+
+        val color = ContextCompat.getColor(this, colorResId)
+
+        val spannable = SpannableString(line + "\n").apply {
+            setSpan(
+                ForegroundColorSpan(color),
+                0,
+                this.length,
+                SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        logBuffer.append(spannable)
+
+        // 최대 줄 수 초과 시 오래된 로그 제거
+        val lines = logBuffer.split("\n")
+        if (lines.size > MAX_LOG_LINES) {
+            val trimmed = lines.takeLast(MAX_LOG_LINES).joinToString("\n")
+            logBuffer.clear()
+            logBuffer.append(trimmed).append("\n")
+        }
+
+        // 일정 횟수마다만 UI 갱신 (10줄마다)
+        updateCounter++
+        if (updateCounter >= UPDATE_INTERVAL) {
+            updateCounter = 0
+            tv_log_area.setTextKeepState(logBuffer)
+            if (!userScrolling) {
+                sv_log_area.post {
+                    sv_log_area.fullScroll(ScrollView.FOCUS_DOWN)
+                }
+            }
+        }
     }
 }
