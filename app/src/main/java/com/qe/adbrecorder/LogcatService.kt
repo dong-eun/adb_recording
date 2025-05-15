@@ -58,7 +58,7 @@ class LogcatService : Service() {
         logcatThread = Thread {
             var writer: BufferedWriter? = null // 로그 파일에 기록할 writer
             try {
-                process = Runtime.getRuntime().exec("logcat -d") // logcat 명령 실행 (dump 모드)
+                process = Runtime.getRuntime().exec("logcat") // logcat 명령 실행
                 val reader = BufferedReader(InputStreamReader(process!!.inputStream)) // 출력 읽기 위한 reader
 
                 var lastSwitchTime = System.currentTimeMillis() // 파일 분할 기준 시간 저장
