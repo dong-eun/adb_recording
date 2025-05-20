@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
@@ -76,6 +77,11 @@ class MainActivity : AppCompatActivity() {
         // 파일 생성 메시지를 수신하기 위한 브로드캐스트 리시버 등록
         val filter = IntentFilter("com.qe.adbrecorder.FILE_CREATED")
         LocalBroadcastManager.getInstance(this).registerReceiver(fileMessageReceiver, filter)
+
+        // READ_LOGS 권한이 있는지 확인
+        if (ContextCompat.checkSelfPermission(this, "android.permission.READ_LOGS") != PackageManager.PERMISSION_GRANTED) {
+            showMessage("Missing READ_LOGS permission. Please re-grant the permission via ADB.")
+        }
     }
 
     override fun onStop() {
