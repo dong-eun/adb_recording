@@ -47,7 +47,7 @@ class LogcatService : Service() {
         manager.createNotificationChannel(channel) // 알림 채널 등록
 
         val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("ADB 로그 기록 중") // 알림 제목 설정
+            .setContentTitle("ADB log recording") // 알림 제목 설정
             .setSmallIcon(R.drawable.ic_launcher_foreground) // 알림 아이콘 설정
             .build()
 
@@ -65,7 +65,7 @@ class LogcatService : Service() {
                 val initialStream = createLogOutputStream(this) // 초기 파일 생성
 
                 if (initialStream == null) {
-                    Log.e(TAG, "초기 로그 파일 생성 실패. 서비스 중지.") // 파일 생성 실패 시 서비스 중단
+                    Log.e(TAG, "Failed to create log file, Service stopped") // 파일 생성 실패 시 서비스 중단
                     stopSelf()
                     return@Thread
                 }
@@ -86,7 +86,7 @@ class LogcatService : Service() {
 
                         val result = createLogOutputStream(this) // 새 로그 파일 생성
                         if (result == null) {
-                            Log.e(TAG, "새 로그 파일 생성 실패.") // 실패 시 루프 종료
+                            Log.e(TAG, "Failed to create log file") // 실패 시 루프 종료
                             break
                         }
 
@@ -106,7 +106,7 @@ class LogcatService : Service() {
                 reader.close() // reader 종료
                 process?.destroy() // logcat 프로세스 종료
             } catch (e: Exception) {
-                Log.e(TAG, "Logcat 수집 중 예외 발생", e)
+                Log.e(TAG, "Logcat exception occurred", e)
             } finally {
                 writer?.flush() // writer 정리
                 writer?.close()
@@ -154,27 +154,40 @@ class LogcatService : Service() {
                     val outputStream = resolver.openOutputStream(uri)
                     if (outputStream != null) {
                         val path = "$relativePath/$fileName" // 전체 경로 문자열
-                        Log.i(TAG, "로그 파일 생성됨: $path") // 로그 출력
+                        Log.i(TAG, "Log file created : $path") // 로그 출력
                         return Pair(outputStream, path) // 출력 스트림과 경로 반환
                     }
                 }
             } else {
-                Log.e(TAG, "Android 10 미만은 미지원") // 하위 버전 경고
+                Log.e(TAG, "Not supported on Android versions below 10") // 하위 버전 경고
             }
 
             null // 실패 시 null 반환
         } catch (e: Exception) {
-            Log.e(TAG, "파일 출력 스트림 생성 실패", e)
+            Log.e(TAG, "Failed to create file output stream", e)
             null
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false // 실행 상태 종료
-        logcatThread?.interrupt() // 스레드 중단
-        process?.destroy() // logcat 프로세스 종료
-        Log.i(TAG, "LogcatService 중단됨") // 로그 출력
+        isRunning = false // 로그 수집 상태 플래그 비활성화
+
+        logcatThread?.interrupt() // 로그 수집 스레드에 인터럽트 신호 전달
+        try {
+            logcatThread?.join(1000) // 최대 1초간 스레드가 종료되길 기다림
+        } catch (e: Exception) {
+            Log.w(TAG, "Error while waiting for logcatThread to terminate", e) // 예외 발생 시 경고 로그 출력
+        }
+
+        process?.destroy() // logcat 프로세스 종료 요청
+        try {
+            process?.waitFor() // 프로세스가 완전히 종료될 때까지 대기
+        } catch (e: Exception) {
+            Log.w(TAG, "Error while waiting for logcatThread to terminate", e) // 예외 발생 시 경고 로그 출력
+        }
+
+        Log.i(TAG, "LogcatService stopped") // 서비스 중단 로그 출력
     }
 
     override fun onBind(intent: Intent?): IBinder? = null // 바인딩 인터페이스 미사용
