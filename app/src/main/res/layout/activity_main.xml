@@ -26,28 +26,28 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.02" />
+        app:layout_constraintGuide_percent="0.05" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline_vertical_line_2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.08" />
+        app:layout_constraintGuide_percent="0.15" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline_vertical_line_3"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.13" />
+        app:layout_constraintGuide_percent="0.23" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline_vertical_line_4"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.20" />
+        app:layout_constraintGuide_begin="146dp" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline_vertical_line_5"
@@ -91,7 +91,7 @@
 
     <Button
         android:id="@+id/btn_run_time"
-        android:layout_width="wrap_content"
+        android:layout_width="150dp"
         android:layout_height="@dimen/btn_small_height"
         android:layout_marginTop="@dimen/padding_small"
         android:background="@drawable/btn_selector"
@@ -152,7 +152,7 @@
                 android:textSize="@dimen/text_medium"
                 android:scrollHorizontally="true"
                 android:ellipsize="none"
-                android:text="Logcat Log Area" />
+                android:text="Log Area" />
         </ScrollView>
     </HorizontalScrollView>
 

@@ -8,6 +8,6 @@
     <dimen name="padding_medium">16dp</dimen>
     <dimen name="padding_large">24dp</dimen>
 
-    <dimen name="btn_small_height">25dp</dimen>
-    <dimen name="btn_medium_height">30dp</dimen>
+    <dimen name="btn_small_height">30dp</dimen>
+    <dimen name="btn_medium_height">40dp</dimen>
 </resources>
