@@ -130,41 +130,47 @@ class LogcatService : Service() {
 
     private fun createLogOutputStream(context: Context): Pair<OutputStream, String>? {
         return try {
-            val dateFormat = SimpleDateFormat("yyMMdd", Locale.getDefault())       // YYMMDD
-            val timeFormat = SimpleDateFormat("HHmmss", Locale.getDefault())       // HHmmss
+            val dateFormat = SimpleDateFormat("yyMMdd", Locale.getDefault())       // 날짜 포맷: YYMMDD
+            val timeFormat = SimpleDateFormat("HHmmss", Locale.getDefault())       // 시간 포맷: HHmmss
 
-            val datePart = dateFormat.format(Date())
-            val timePart = timeFormat.format(Date())
+            val datePart = dateFormat.format(Date()) // 현재 날짜
+            val timePart = timeFormat.format(Date()) // 현재 시간
 
-            val fileName = "log_$timePart.txt"
-            val folderName = datePart
-            val relativePath = "Download/ADB_RECORDING/$folderName"
+            val fileName = "log_$timePart.txt"       // 파일 이름: log_HHmmss.txt
+            val folderName = datePart                // 폴더 이름: YYMMDD
+            val relativePath = "Download/ADB_RECORDING/$folderName" // 저장 경로 (MediaStore 기준)
+            val fullPath = "$relativePath/$fileName" // 전체 경로 문자열
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Log.i(TAG, "Attempting to create file at: $fullPath") // 파일 생성 시도 로그 출력
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // 안드로이드 10 이상에서만 처리
                 val contentValues = ContentValues().apply {
-                    put(MediaStore.Files.FileColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.Files.FileColumns.MIME_TYPE, "text/plain")
-                    put(MediaStore.Files.FileColumns.RELATIVE_PATH, relativePath)
+                    put(MediaStore.Files.FileColumns.DISPLAY_NAME, fileName)       // 파일 이름 설정
+                    put(MediaStore.Files.FileColumns.MIME_TYPE, "text/plain")      // MIME 타입 설정
+                    put(MediaStore.Files.FileColumns.RELATIVE_PATH, relativePath)  // 저장 위치 설정
                 }
 
                 val resolver = context.contentResolver
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues) // MediaStore에 파일 추가
 
                 if (uri != null) {
-                    val outputStream = resolver.openOutputStream(uri)
+                    val outputStream = resolver.openOutputStream(uri) // 출력 스트림 획득
                     if (outputStream != null) {
-                        val path = "$relativePath/$fileName" // 전체 경로 문자열
-                        Log.i(TAG, "Log file created : $path") // 로그 출력
-                        return Pair(outputStream, path) // 출력 스트림과 경로 반환
+                        Log.i(TAG, "File created successfully: $fullPath") // 성공 로그 출력
+                        return Pair(outputStream, fullPath)               // 출력 스트림과 경로 반환
+                    } else {
+                        Log.e(TAG, "Failed to open output stream: $fullPath") // 스트림 획득 실패 로그
                     }
+                } else {
+                    Log.e(TAG, "Failed to insert into MediaStore: $fullPath") // MediaStore 삽입 실패 로그
                 }
             } else {
-                Log.e(TAG, "Not supported on Android versions below 10") // 하위 버전 경고
+                Log.e(TAG, "Android version below 10 is not supported") // 버전 미지원 로그 출력
             }
 
             null // 실패 시 null 반환
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create file output stream", e)
+            Log.e(TAG, "Exception while creating file output stream", e) // 예외 발생 시 로그 출력
             null
         }
     }
